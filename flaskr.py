@@ -6,18 +6,43 @@ import random
 import string
 import json
 import subprocess
-     
+
+import redis
+from rq import Worker, Queue, Connection
+
+from worker import test_run
 #Configuration
 
 
-UPLOAD_FOLDER = './uploads'
-
 app = Flask(__name__)
 app.debug = True
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['UPLOAD_FOLDER'] = './uploads'
 app.config['OUTPUT_FOLDER'] = './output'
 app.config['SCRATCH_FOLDER'] = './scratch'
-        
+
+redis_url = os.getenv('REDISTOGO_URL', 'redis://localhost:6379')
+conn = redis.from_url(redis_url)
+q = Queue(connection=conn)
+
+@app.route('/test_run_job', methods=['GET'])
+def testrunjob():
+    job = q.enqueue_call(
+        func=test_run, args=(), result_ttl=5000
+    )
+    print(job.get_id())
+    return job.get_id()
+
+
+    
+@app.route("/results/<job_key>", methods=['GET'])
+def get_results(job_key):
+    job = Job.fetch(job_key, connection=conn)
+
+    if job.is_finished:
+        return str(job.result), 200
+    else:
+        return "Nay!", 202
+    
 @app.route('/run_job', methods=['POST'])
 def runjob():
     if request.files:
