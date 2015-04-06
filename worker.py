@@ -46,7 +46,7 @@ def execute_qiime_pcoa(input_files_path_map, output_file_path, scratch_path):
     
     
     
-#Given the deposited data do something with it
+#Given the deposited data do something with it, Deprecated
 def execute_job(input_files_path_map, output_file_path, scratch_path):
     cmd = "make_emperor.py " + " -i " + input_files_path_map["coordinate"] + " -m " + input_files_path_map["mapping"] + " -o " + scratch_path
     print cmd

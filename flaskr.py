@@ -1,6 +1,6 @@
 
 import os
-from flask import Flask, request, redirect, url_for, send_file
+from flask import Flask, request, redirect, url_for, send_file, render_template
 
 import random
 import string
@@ -26,6 +26,10 @@ redis_url = os.getenv('REDISTOGO_URL', 'redis://localhost:6379')
 conn = redis.from_url(redis_url)
 q = Queue(connection=conn)
 
+@app.route('/', methods=['GET'])
+def renderhomepage():
+    return render_template('homepage.html')
+
 @app.route('/test_run_job', methods=['GET'])
 def testrunjob():
     job = q.enqueue_call(
@@ -43,7 +47,7 @@ def get_results(job_key):
     if job.is_finished:
         return str(job.result), 200
     else:
-        return "Nay!", 202
+        return "Running, Refresh!", 202
     
 @app.route('/run_job', methods=['POST'])
 def runjob():
@@ -72,7 +76,7 @@ def runjob():
             func=execute_qiime_pcoa, args=(uploaded_file_mapping, output_file, scratch_folder), result_ttl=86000
         )
         print(job.get_id())
-        return job.get_id()
+        return render_template('submission.html', job_id = job.get_id())
         
         #execute_job(uploaded_file_mapping, output_file, scratch_folder)
         
