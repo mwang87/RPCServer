@@ -5,16 +5,18 @@ from flask import Flask, request, redirect, url_for, send_file
 import random
 import string
 import json
-import subprocess
+
 
 import redis
 from rq import Worker, Queue, Connection
+from rq.job import Job
 
 from worker import test_run
+from worker import execute_qiime_pcoa
 #Configuration
 
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='./static', static_url_path='/results')
 app.debug = True
 app.config['UPLOAD_FOLDER'] = './uploads'
 app.config['OUTPUT_FOLDER'] = './output'
@@ -27,7 +29,7 @@ q = Queue(connection=conn)
 @app.route('/test_run_job', methods=['GET'])
 def testrunjob():
     job = q.enqueue_call(
-        func=test_run, args=(), result_ttl=5000
+        func=test_run, args=(), result_ttl=86000
     )
     print(job.get_id())
     return job.get_id()
@@ -65,21 +67,20 @@ def runjob():
         scratch_folder = os.path.join(app.config['SCRATCH_FOLDER'], id_generator(10))
         make_sure_path_exists(scratch_folder)
         
-        execute_job(uploaded_file_mapping, output_file, scratch_folder)
+        print "SCRATCH : " + scratch_folder
+        job = q.enqueue_call(
+            func=execute_qiime_pcoa, args=(uploaded_file_mapping, output_file, scratch_folder), result_ttl=86000
+        )
+        print(job.get_id())
+        return job.get_id()
         
-        return send_file(output_file, mimetype='image/gif')
+        #execute_job(uploaded_file_mapping, output_file, scratch_folder)
+        
+        #return send_file(output_file, mimetype='image/gif')
     
-    return "MING"
+    return "ERROR", 400
 
-#Given the deposited data do something with it
-def execute_job(input_files_path_map, output_file_path, scratch_path):
-    cmd = "make_emperor.py " + " -i " + input_files_path_map["coordinate"] + " -m " + input_files_path_map["mapping"] + " -o " + scratch_path
-    print cmd
-    subprocess.call([cmd], shell=True)
-    cp_cmd = "cp " + os.path.join(scratch_path, "index.html") + " " + output_file_path
-    print cp_cmd
-    subprocess.call([cp_cmd], shell=True)
-    
+
     
 def id_generator(size=6, chars=string.ascii_uppercase + string.digits):
     return ''.join(random.choice(chars) for _ in range(size))
