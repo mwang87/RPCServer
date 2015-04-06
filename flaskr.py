@@ -73,7 +73,7 @@ def runjob():
         
         print "SCRATCH : " + scratch_folder
         job = q.enqueue_call(
-            func=execute_qiime_pcoa, args=(uploaded_file_mapping, output_file, scratch_folder), result_ttl=86000
+            func=execute_qiime_pcoa, args=(uploaded_file_mapping, output_file, scratch_folder), result_ttl=86000, timeout=3600
         )
         print(job.get_id())
         return render_template('submission.html', job_id = job.get_id())
