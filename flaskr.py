@@ -11,16 +11,16 @@ import redis
 from rq import Worker, Queue, Connection
 from rq.job import Job
 
-from worker import test_run
-from worker import execute_qiime_pcoa
+from worker import execute_worker_task
 #Configuration
 
 
-app = Flask(__name__, static_folder='./static', static_url_path='/results')
+app = Flask(__name__, static_folder='./static/result_output', static_url_path='/result_output')
 app.debug = True
 app.config['UPLOAD_FOLDER'] = './uploads'
 app.config['OUTPUT_FOLDER'] = './output'
 app.config['SCRATCH_FOLDER'] = './scratch'
+app.config['ZIPPED_RESULTS'] = './static/result_output'
 
 redis_url = os.getenv('REDISTOGO_URL', 'redis://localhost:6379')
 conn = redis.from_url(redis_url)
@@ -38,22 +38,41 @@ def testrunjob():
     print(job.get_id())
     return job.get_id()
 
-
     
 @app.route("/results/<job_key>", methods=['GET'])
 def get_results(job_key):
     job = Job.fetch(job_key, connection=conn)
 
+    zipped_filepath = "/result_output/" + job.get_id() + ".tar.gz"
+    print zipped_filepath
+
     if job.is_finished:
-        return str(job.result), 200
+        result_return = str(job.result)
+        return render_template("results_page.html", zipped_filepath=zipped_filepath, result_return=result_return)
+        #return str(job.result), 200
+
     else:
-        return "Running, Refresh!", 202
+        return render_template("refresh_page.html")
     
 @app.route('/run_job', methods=['POST'])
 def runjob():
+    job_parameters = {}
+
+    #Finding all Parameters
+    print request.form
+    for key in request.form:
+        print key
+        print request.form[key]
+        job_parameters[key] = request.form[key]
+
+
+    #saving files in a location and then saving into a full parameters map
+    print request.files
+
+    job_id = id_generator(10)
+
+    #Saving Files
     if request.files:
-        #attached_files_list = json.loads(request.args.get('filenames', '[]'))
-        uploaded_file_mapping = {}
         
         print request.files.keys()
         
@@ -61,28 +80,26 @@ def runjob():
             file_request = request.files[file_in_list]
             
             if file_request:
-                filename = id_generator(10)
+                filename = job_id
                 system_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
                 file_request.save(system_path)
-                uploaded_file_mapping[file_in_list] = system_path
-        
-        print uploaded_file_mapping
-        output_file = os.path.join(app.config['OUTPUT_FOLDER'], id_generator(10))
-        scratch_folder = os.path.join(app.config['SCRATCH_FOLDER'], id_generator(10))
-        make_sure_path_exists(scratch_folder)
-        
-        print "SCRATCH : " + scratch_folder
-        job = q.enqueue_call(
-            func=execute_qiime_pcoa, args=(uploaded_file_mapping, output_file, scratch_folder), result_ttl=86000, timeout=3600
-        )
-        print(job.get_id())
-        return render_template('submission.html', job_id = job.get_id())
-        
-        #execute_job(uploaded_file_mapping, output_file, scratch_folder)
-        
-        #return send_file(output_file, mimetype='image/gif')
-    
-    return "ERROR", 400
+                job_parameters[file_in_list] = system_path
+
+
+    output_folder = os.path.join(app.config['OUTPUT_FOLDER'], job_id)
+    scratch_folder = os.path.join(app.config['SCRATCH_FOLDER'], job_id)
+    zipped_result = os.path.join(app.config['ZIPPED_RESULTS'], job_id + ".tar.gz")
+
+    make_sure_path_exists(output_folder)
+    make_sure_path_exists(scratch_folder)
+
+    job = q.enqueue_call(
+        func=execute_worker_task, args=(job_parameters, output_folder, scratch_folder, zipped_result), result_ttl=86000, timeout=3600, job_id=job_id
+    )
+
+    print "Job ID: " + job_id
+
+    return redirect("/results/" + job_id)
 
 
     

@@ -7,11 +7,28 @@ listen = ['default']
 redis_url = os.getenv('REDISTOGO_URL', 'redis://localhost:6379')
 conn = redis.from_url(redis_url)
 
-def test_run():
-    print 'RUNNING JOB'
-    return "MING"
 
+
+def execute_worker_task(input_parameters, output_folder, scratch_folder, zipped_result):
+    result_output = custom_worker_task(input_parameters, output_folder, scratch_folder)
+
+    #zipping up the output folder
+    cmd = "tar -czvf " + zipped_result + " -C " + output_folder + " . "
+    subprocess.call([cmd], shell=True)
+    print cmd
+
+    return result_output
+
+
+def custom_worker_task(input_parameters, output_folder, scratch_folder):
+    output_filename = os.path.join(output_folder, "ming.out")
+    output_file = open(output_filename, "w")
+    output_file.write("OutDummyFile.out")
+    output_file.close()
     
+    return "DUMMY CUSTOM WORKFLOW FINISHED"
+
+
 #Test Execution of thing
 def execute_qiime_pcoa(input_files_path_map, output_file_path, scratch_path):
     bucket_table_path = input_files_path_map["bucket_table"]
